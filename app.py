@@ -12,6 +12,7 @@ NODE_PORT = os.environ.get("NEWS_EXTRACTOR_NODE_PORT")
 SERVICE_THREAD = None
 LAST_THREAD = None
 formatted_datetime = datetime.now().strftime("%d_%m_%Y-%H_%M_%S")
+os.makedirs('logs',exist_ok=True)
 logging.basicConfig(
     level=logging.DEBUG, filename=f"logs/app-{formatted_datetime}.log", filemode="w"
 )
@@ -106,4 +107,4 @@ def download_file():
 
 # Run the Flask app
 if __name__ == "__main__":
-    app.run(port=6789, debug=True)
+    app.run(port=6789, debug=False)
