@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Loading Page</title>
+    <style>
+        /* Add your loading animation CSS here */
+        /* For example, you can use a spinning loader */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 150px;
+            height: 150px;
+            animation: spin 2s linear infinite;
+            margin: 0 auto;
+            margin-top: 50px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="loader"></div>
+    <!-- <p>Loading...</p> -->
+
+    <script>
+        // Function to check if the server is ready
+        function checkServerStatus() {
+            fetch('/react-ready')
+                .then(response => response.text())
+                .then(data => {
+                    if (data==='OK') {
+                        window.location.href = '/react-app'; // Redirect to the home page
+                    } else {
+                        setTimeout(checkServerStatus, 1000); // Check again in 1 second
+                    }
+                })
+                .catch(error => {
+                    // Handle errors
+                    console.error('Error:', error);
+                    setTimeout(checkServerStatus, 1000); // Check again in 1 second
+                });
+        }
+
+        // Start checking server status when the page loads
+        window.addEventListener('load', checkServerStatus);
+    </script>
+</body>
+</html>

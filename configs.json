@@ -1,0 +1,5 @@
+{
+    "output_folder": "./downloads",
+    "staging_folder":"./staging",
+    "url_keywords_path":"../news-feed-extractor-backend/url_keywords.json"
+}
