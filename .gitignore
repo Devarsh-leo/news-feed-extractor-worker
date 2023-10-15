@@ -2,3 +2,4 @@ env
 __*__
 staging/*
 logs/*
+downloads/*
