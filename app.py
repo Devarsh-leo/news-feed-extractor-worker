@@ -14,7 +14,10 @@ LAST_THREAD = None
 formatted_datetime = datetime.now().strftime("%d_%m_%Y-%H_%M_%S")
 os.makedirs('logs',exist_ok=True)
 logging.basicConfig(
-    level=logging.DEBUG, filename=f"logs/app-{formatted_datetime}.log", filemode="w"
+    level=logging.DEBUG,
+    filename=f"logs/app-{formatted_datetime}.log", 
+    filemode="w",
+    format='%(asctime)s [%(levelname)s] %(funcName)s:%(lineno)d - %(message)s'
 )
 
 # Create a Flask app

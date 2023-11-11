@@ -4,7 +4,7 @@ from .url_parser import UrlParser
 from .output_manager import OutputManager
 import time
 import logging
-from datetime import datetime
+from datetime import datetime , timedelta
 import sys
 
 
@@ -13,7 +13,7 @@ import sys
 date_string_format = {
     "https://www.ft.com/markets": "%B %d, %Y",
     "https://www.cityam.com/category/markets/": "%B %d, %Y",
-    "https://www.reuters.com/news/archive/fundsFundsNews": ("%b %d %Y", "%H:%M%p EDT"),
+    "https://www.reuters.com/news/archive/fundsFundsNews": ("%b %d %Y", "%H:%M%p EDT","%H:%M%p EST"),
     "https://www.hl.co.uk/news/tags/funds": "%d %b %Y",
     "https://www.investmentweek.co.uk/category/investment/funds": "%d %B %Y",
     "https://www.morningstar.co.uk/uk/collection/2114/fund-research--insights.aspx?page=1": "%d/%m/%y",
@@ -70,7 +70,7 @@ def paginate_filter_and_save_data(
             if site_url not in date_string_format:
                 logging.error(f"strint format unknown for {site_url} ")
                 return
-            if not str_date:
+            elif not str_date:
                 return
             if "|" in str_date:
                 str_date = str_date.split("|")[0].strip()
@@ -79,25 +79,38 @@ def paginate_filter_and_save_data(
             if isinstance(date_string_format[site_url], tuple):
                 for format in date_string_format[site_url]:
                     try:
-                        return datetime.strptime(str_date.strip(), format)
+                        date = datetime.strptime(str_date.strip(), format)
+                        break
                     except:
                         pass
             else:
-                return datetime.strptime(str_date.strip(), date_string_format[site_url])
+                date = datetime.strptime(str_date.strip(), date_string_format[site_url])
+            return repair(date)
         except Exception as e:
-            logging.error(f"Error in get_datetime, {e} for {site_url}")
+            logging.error(f"Error in get_datetime, {e} for {site_url} value: {str_date}")
 
-    def transform_date_to_output_format(date):
+    def repair(date):
+        match site_url:
+            case "https://www.reuters.com/news/archive/fundsFundsNews":
+                if date.year == 1900:
+                    date = todays_time(date)
+        return date
+    
+    def transform_date_to_output_format(i_date):
         # logging.debug("Transform date to output format")
-        if date:
-            date = get_datetime(date)
-            match site_url:
-                case "https://www.reuters.com/news/archive/fundsFundsNews":
-                    if date.year == 1900:
-                        date = todays_time(date)
-            date = date.strftime(date_output_format)
-        else:
-            logging.warning("Date is empty")
+        try:
+            if i_date:
+                date = get_datetime(i_date)
+                if date:
+                    
+                    date = date.strftime(date_output_format)
+                else:
+                    logging.warning(f"No date value after get it from get_datetime func! for date: {i_date}")
+            else:
+                logging.warning("Date is empty")
+        except Exception as e:
+            logging.error(f"Error {e}")
+            raise e
         return date
 
     # print(1)
@@ -200,27 +213,51 @@ def paginate_filter_and_save_data(
             # logging.debug(
             #     f"Page_data {url}: {title, partial_body, title_links, title_date, author}"
             # )
-
-            filtered_data = (
-                (
-                    url,
-                    transform_date_to_output_format(data[3]),  # Date
-                    data[0],  # Title
-                    data[4],  # Author
-                    data[2],  # URL
-                    *title_body_decode(
-                        match_keywords(data[0]), match_keywords(data[1])
-                    ),  # Title-Body keywords
-                    site_url,  # Site
-                )
-                for data in page_data
-                if (match_keywords(data[0]) or match_keywords(data[1]))
-                and (
-                    from_date <= get_datetime(data[3]) <= to_date
-                    if get_datetime(data[3])
-                    else True
-                )
-            )
+            filtered_data = []
+            # data = next(page_data)
+            for data in page_data:
+                data_date = get_datetime(data[3])
+                if (match_keywords(data[0]) or match_keywords(data[1])):
+                    if (
+                        0<= (data_date - to_date).seconds < 86400 and
+                        from_date <= data_date <= to_date+timedelta(days=1)
+                        ) or (
+                            from_date <= data_date <= to_date
+                        ) or (
+                            not data_date
+                        ):
+                        filtered_data.append((
+                            url,
+                            transform_date_to_output_format(data[3]),  # Date
+                            data[0],  # Title
+                            data[4],  # Author
+                            data[2],  # URL
+                            *title_body_decode(
+                                match_keywords(data[0]), match_keywords(data[1])
+                            ),  # Title-Body keywords
+                            site_url,  # Site
+                        ))
+                    
+            # filtered_data = (
+                # (
+                #     url,
+                #     transform_date_to_output_format(data[3]),  # Date
+                #     data[0],  # Title
+                #     data[4],  # Author
+                #     data[2],  # URL
+                #     *title_body_decode(
+                #         match_keywords(data[0]), match_keywords(data[1])
+                #     ),  # Title-Body keywords
+                #     site_url,  # Site
+                # )
+                # for data in page_data
+                # if (match_keywords(data[0]) or match_keywords(data[1]))
+                # and (
+                #     from_date <= get_datetime(data[3]) <= to_date
+                #     if get_datetime(data[3])
+                #     else True
+                # )
+            # )
             logger = logging.getLogger()
             if logger.getEffectiveLevel() == logging.DEBUG:
                 filtered_data = list(filtered_data)

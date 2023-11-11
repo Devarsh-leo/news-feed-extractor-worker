@@ -194,7 +194,7 @@ def search_cityam_markets(output_manager, url, url_id, from_date, to_date, kill_
 
 
 def search_reuters_fundnews(
-    output_manager, url, url_id, from_date, to_date, kill_thread
+    output_manager, site_url, url_id, from_date, to_date, kill_thread
 ):
     # date format YYYY-MM-DD
 
@@ -227,8 +227,7 @@ def search_reuters_fundnews(
     try:
         logging.debug("configuring selectors for feed extraction")
 
-        match_keywords = partial(keywords_manager.match_keywords, url)
-        site_url = url
+        match_keywords = partial(keywords_manager.match_keywords, site_url)
 
         self = market_url_parser
         parent_selector = "#sectionTitle ~ .module div.news-headline-list article"
