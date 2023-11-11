@@ -4,7 +4,7 @@ from .url_parser import UrlParser
 from .output_manager import OutputManager
 import time
 import logging
-from datetime import datetime , timedelta
+from datetime import datetime, timedelta
 import sys
 
 
@@ -13,7 +13,11 @@ import sys
 date_string_format = {
     "https://www.ft.com/markets": "%B %d, %Y",
     "https://www.cityam.com/category/markets/": "%B %d, %Y",
-    "https://www.reuters.com/news/archive/fundsFundsNews": ("%b %d %Y", "%H:%M%p EDT","%H:%M%p EST"),
+    "https://www.reuters.com/news/archive/fundsFundsNews": (
+        "%b %d %Y",
+        "%H:%M%p EDT",
+        "%H:%M%p EST",
+    ),
     "https://www.hl.co.uk/news/tags/funds": "%d %b %Y",
     "https://www.investmentweek.co.uk/category/investment/funds": "%d %B %Y",
     "https://www.morningstar.co.uk/uk/collection/2114/fund-research--insights.aspx?page=1": "%d/%m/%y",
@@ -87,7 +91,9 @@ def paginate_filter_and_save_data(
                 date = datetime.strptime(str_date.strip(), date_string_format[site_url])
             return repair(date)
         except Exception as e:
-            logging.error(f"Error in get_datetime, {e} for {site_url} value: {str_date}")
+            logging.error(
+                f"Error in get_datetime, {e} for {site_url} value: {str_date}"
+            )
 
     def repair(date):
         match site_url:
@@ -95,17 +101,18 @@ def paginate_filter_and_save_data(
                 if date.year == 1900:
                     date = todays_time(date)
         return date
-    
+
     def transform_date_to_output_format(i_date):
         # logging.debug("Transform date to output format")
         try:
             if i_date:
                 date = get_datetime(i_date)
                 if date:
-                    
                     date = date.strftime(date_output_format)
                 else:
-                    logging.warning(f"No date value after get it from get_datetime func! for date: {i_date}")
+                    logging.warning(
+                        f"No date value after get it from get_datetime func! for date: {i_date}"
+                    )
             else:
                 logging.warning("Date is empty")
         except Exception as e:
@@ -113,6 +120,8 @@ def paginate_filter_and_save_data(
             raise e
         return date
 
+    # def get_date(date_time):
+    #     return date_time
     # print(1)
     # current_page, url = next(paginator)
     end_pagination = None
@@ -123,7 +132,7 @@ def paginate_filter_and_save_data(
         try:
             logging.info(f"Page: {current_page} , {url}")
             time.sleep(0.01)
-            paginated_url_parser = UrlParser(url, timeout=timeout)
+            paginated_url_parser = UrlParser(url, timeout=timeout, max_retries=5)
             assert paginated_url_parser.soup, f"Failed to load url: {url}"
             # 3
             title_date = paginated_url_parser.get_from_selector(
@@ -215,48 +224,69 @@ def paginate_filter_and_save_data(
             # )
             filtered_data = []
             # data = next(page_data)
+            page_data_headers = [
+                "title",
+                "partial_body",
+                "title_links",
+                "title_date",
+                "author",
+            ]
             for data in page_data:
+                for ind, item in enumerate(data):
+                    if page_data_headers[ind] in ("partial_body",):
+                        continue
+                    logging.debug(f"{page_data_headers[ind]} {item}")
                 data_date = get_datetime(data[3])
-                if (match_keywords(data[0]) or match_keywords(data[1])):
+                # logging.debug(f"data_date: {data_date}")
+                logging.debug(
+                    f"{page_data_headers[0]} matched {match_keywords(data[0])}"
+                )
+                logging.debug(
+                    f"{page_data_headers[1]} matched {match_keywords(data[1])}"
+                )
+                if match_keywords(data[0]) or match_keywords(data[1]):
+                    logging.debug(
+                        f"data_date: {data_date.date()} form_date: {from_date.date()} to_date: {to_date.date()}, consitions {from_date.date() == data_date.date()} or {to_date.date() == data_date.date()} or {from_date.date() <= data_date.date() <= to_date.date()} or {not data_date}"
+                    )
                     if (
-                        0<= (data_date - to_date).seconds < 86400 and
-                        from_date <= data_date <= to_date+timedelta(days=1)
-                        ) or (
-                            from_date <= data_date <= to_date
-                        ) or (
-                            not data_date
-                        ):
-                        filtered_data.append((
-                            url,
-                            transform_date_to_output_format(data[3]),  # Date
-                            data[0],  # Title
-                            data[4],  # Author
-                            data[2],  # URL
-                            *title_body_decode(
-                                match_keywords(data[0]), match_keywords(data[1])
-                            ),  # Title-Body keywords
-                            site_url,  # Site
-                        ))
-                    
+                        (from_date.date() == data_date.date())
+                        or (to_date.date() == data_date.date())
+                        or (from_date.date() < data_date.date() < to_date.date())
+                        or (not data_date)
+                    ):
+                        filtered_data.append(
+                            (
+                                url,
+                                transform_date_to_output_format(data[3]),  # Date
+                                data[0],  # Title
+                                data[4],  # Author
+                                data[2],  # URL
+                                *title_body_decode(
+                                    match_keywords(data[0]), match_keywords(data[1])
+                                ),  # Title-Body keywords
+                                site_url,  # Site
+                            )
+                        )
+
             # filtered_data = (
-                # (
-                #     url,
-                #     transform_date_to_output_format(data[3]),  # Date
-                #     data[0],  # Title
-                #     data[4],  # Author
-                #     data[2],  # URL
-                #     *title_body_decode(
-                #         match_keywords(data[0]), match_keywords(data[1])
-                #     ),  # Title-Body keywords
-                #     site_url,  # Site
-                # )
-                # for data in page_data
-                # if (match_keywords(data[0]) or match_keywords(data[1]))
-                # and (
-                #     from_date <= get_datetime(data[3]) <= to_date
-                #     if get_datetime(data[3])
-                #     else True
-                # )
+            # (
+            #     url,
+            #     transform_date_to_output_format(data[3]),  # Date
+            #     data[0],  # Title
+            #     data[4],  # Author
+            #     data[2],  # URL
+            #     *title_body_decode(
+            #         match_keywords(data[0]), match_keywords(data[1])
+            #     ),  # Title-Body keywords
+            #     site_url,  # Site
+            # )
+            # for data in page_data
+            # if (match_keywords(data[0]) or match_keywords(data[1]))
+            # and (
+            #     from_date <= get_datetime(data[3]) <= to_date
+            #     if get_datetime(data[3])
+            #     else True
+            # )
             # )
             logger = logging.getLogger()
             if logger.getEffectiveLevel() == logging.DEBUG:

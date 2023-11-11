@@ -36,13 +36,15 @@ class UrlParser:
 
     def _load(self):
         retries = 0
-
+        extended_timeout = 0
         while retries < self.max_retries:
             try:
-                response = requests.get(self.url, timeout=self.timeout)
+                response = requests.get(
+                    self.url, timeout=self.timeout + extended_timeout
+                )
                 if response.status_code == self.expected_status_code:
                     return BeautifulSoup(response.text, "html.parser")
-                elif response.status_code == 429:
+                elif response.status_code in (429, 502):
                     logging.warning(
                         f"Retrying after {self.api_limit_delay} seconds ({retries}/{self.max_retries})"
                     )
@@ -63,6 +65,7 @@ class UrlParser:
                 # self.api_limit_delay *= 5
 
             retries += 1
+            extended_timeout += 4
             if retries < self.max_retries:
                 logging.warning(f"Retrying... ({retries}/{self.max_retries})")
 

@@ -253,7 +253,7 @@ def search_reuters_fundnews(
         # _ = self.get_from_selector(link_parent_selector, link_selector, get="href")
 
         author_parent_selector = None
-        author_selector = "header div[class*='article-header__info__']  a[href*='author'], [class*='ArticleBody-byline'] a, [class*='ArticleBody-byline'] span"
+        author_selector = "header div[class*='article-header']  a[href*='author'],header div[class*='article-header']  span:contains('Reuters'), [class*='ArticleBody-byline'] a, [class*='ArticleBody-byline'] span"
         # _ = self.get_from_selector(author_parent_selector, author_selector, get="text")
         logging.debug("starting to scrape paginated urls")
         paginate_filter_and_save_data(
@@ -297,7 +297,7 @@ def search_hargreaves_lansdown_funds(
     # First verify endpoint is working
     try:
         homepage = "https://www.hl.co.uk/news/tags/funds"
-        homepage_parser = UrlParser(homepage, max_retries=5, timeout=10)
+        homepage_parser = UrlParser(homepage, max_retries=5, timeout=15)
         assert homepage_parser.soup, f"Failed to load homepage : {homepage}"
         text = "\n".join(
             [
@@ -314,7 +314,7 @@ def search_hargreaves_lansdown_funds(
         logging.error(f"Error while loading main page of: {e}")
     try:
         market_url = "https://www.hl.co.uk/news/tags/funds?SQ_DESIGN_NAME=blank&SQ_PAINT_LAYOUT_NAME=tagging_pagnation&result_15077628_result_page=1"
-        market_url_parser = UrlParser(market_url, max_retries=3, timeout=12)
+        market_url_parser = UrlParser(market_url, max_retries=3, timeout=15)
         assert market_url_parser.soup, f"Failed to load url: {url}"
         logging.debug("market_url loaded successfully")
         self = market_url_parser
@@ -357,9 +357,7 @@ def search_hargreaves_lansdown_funds(
         # _ = self.get_from_selector(title_parent_selector, title_selector, get="text")
 
         title_body_parent_selector = None
-        title_body_selector = (
-            "#article div[class='row'] p,#article  div[class='row'] h2"
-        )
+        title_body_selector = "#article div[class='row'] p,#article  div[class='row'] h2, #mainContent div[class='row'] p,#mainContent div[class='row'] h1"
         # _ = self.get_from_selector(
         #     title_body_parent_selector, title_body_selector, get="text"
         # )
