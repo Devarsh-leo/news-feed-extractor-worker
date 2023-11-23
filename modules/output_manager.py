@@ -87,7 +87,7 @@ class OutputManager:
 
     def save_session_file(self):
         raw_name = f"raw-{self.session_id}.csv"
-        processed_name = f"Extracted-Data-{self.session_id}.csv"
+        processed_name = f"Extracted-Data-{self.session_id}.xlsx"
         raw_session_fname = os.path.join(self.output_folder, raw_name)
         processed_session_fname = os.path.join(self.output_folder, processed_name)
         self.append_file(raw_session_fname, self.headers, staging=False)
@@ -141,7 +141,7 @@ class OutputManager:
             ["Date", "Site"], ascending=[False, True], inplace=True
         )
 
-        deduplicated[columns].to_csv(processed_session_fname, index=False)
+        deduplicated[columns].to_excel(processed_session_fname, index=False)
         if not self.keep_session_file:
             os.remove(raw_session_fname)
         print(f"Processed file: {processed_session_fname}")
