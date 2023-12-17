@@ -176,6 +176,27 @@ class UrlParser:
         #             for elem in tags
         #         ]
 
+    def get_from_selector_relative_traceback_to_parent(self,relative_element_parent_selector,relative_element_selector,parent_config={'name':'div'},selector=None,depth=50,get="text"):
+        exiting_elems = self.get_from_selector(parent_selector=relative_element_parent_selector,selector=relative_element_selector,get=None)
+        # elem = exiting_elems[-1]
+        temp_elems = []
+        for elem in exiting_elems:
+            temp_elem = elem
+            for i in range(depth):
+                # print('tag:name',temp_elem.name)
+                temp_elem = temp_elem.parent
+                if not temp_elem:break
+                if 'name' in parent_config:
+                    if temp_elem.name == parent_config['name']:
+                        break
+            if temp_elem:
+                selector='.stream-card__date time'
+                # temp_elem.select_one(selector)
+                temp_elems.append(temp_elem.select_one(selector))
+            else:
+                temp_elems.append(None)
+        return self._get_from_element(temp_elems,get) 
+            
     def find_all(
         self,
         selector,

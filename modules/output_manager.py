@@ -137,10 +137,13 @@ class OutputManager:
             ),
             axis=1,
         )
+
+        deduplicated['Date'] = pd.to_datetime(deduplicated['Date'])
         deduplicated.sort_values(
             ["Date", "Site"], ascending=[False, True], inplace=True
         )
 
+        deduplicated['Date'] = deduplicated['Date'].dt.strftime(self.date_output_format)
         deduplicated[columns].to_excel(processed_session_fname, index=False)
         if not self.keep_session_file:
             os.remove(raw_session_fname)

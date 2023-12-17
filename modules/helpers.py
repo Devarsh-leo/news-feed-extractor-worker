@@ -11,7 +11,7 @@ import sys
 # import pytz
 
 date_string_format = {
-    "https://www.ft.com/markets": "%B %d, %Y",
+    "https://www.ft.com/markets": "%A, %d %B, %Y",
     "https://www.cityam.com/category/markets/": "%B %d, %Y",
     "https://www.reuters.com/news/archive/fundsFundsNews": (
         "%b %d %Y",
@@ -135,11 +135,16 @@ def paginate_filter_and_save_data(
             paginated_url_parser = UrlParser(url, timeout=timeout, max_retries=5)
             assert paginated_url_parser.soup, f"Failed to load url: {url}"
             # 3
-            title_date = paginated_url_parser.get_from_selector(
-                *date_selector,
-                get="text",
-                # from_parent_by=from_title_container_by
-            )
+            if site_url == 'https://www.ft.com/markets':
+                title_date = paginated_url_parser.get_from_selector_relative_traceback_to_parent(
+                    None,'.o-teaser--article',{'name':'li'},'.stream-card__date time',get='text'
+                )
+            else:
+                title_date = paginated_url_parser.get_from_selector(
+                    *date_selector,
+                    get="text",
+                    # from_parent_by=from_title_container_by
+                )
             # print(2, title_date[-1])
             title_date_dt = get_datetime(title_date[-1])
             # print(3)

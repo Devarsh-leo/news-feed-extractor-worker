@@ -28,86 +28,69 @@ keywords_manager = KeywordsManager(configs)
 
 def search_ft_markets(output_manager, url, url_id, from_date, to_date, kill_thread):
     # date format YYYY-MM-DD
-    search_base_url = "https://www.ft.com/search"
-    for keyword in keywords_manager.get_keywords(url):
-        time.sleep(0.01)
-        logging.info(f"current keyword: {keyword}")
-        try:
-            search_page_url = (
-                search_base_url
-                + f"?q={keyword}&page=1&dateTo={to_date}&dateFrom={from_date}&sort=date&expandRefinements=true"
-            )
-            search_page_url_parser = UrlParser(search_page_url)
-            get_url_by_selector = "[aria-label='Markets']"
-            market_url = search_page_url_parser.get_from_selector(
-                None, get_url_by_selector, get="href"
-            )
+    market_url = "https://www.ft.com/markets?page=1"
+    time.sleep(0.01)
+    try:
+        market_url_parser = UrlParser(market_url)
+        self = market_url_parser
+        parent_next_page_selector = None
+        next_page_selector = None
 
-            market_url = market_url[0]
-            # get_url_by = {"attrs": {"aria-label": "Markets"}}
-            # market_url = search_page_url_parser.find_all(
-            #     by=get_url_by, many=False, get="href"
-            # )
-        except Exception as e:
-            if "list index out of range" == str(e):
-                logging.info(f"No data for keyword: {keyword} in section Market")
-                continue
-            else:
-                logging.info(f"Error: {e}")
-                continue
-        try:
-            market_url_parser = UrlParser(market_url)
-            get_next_page_selector = (None, '[data-trackable="next-page"]')
-            # get_next_page_by = {"attrs": {"data-trackable": "next-page"}}
-            # get_max_page_by = {"attrs": {"class": "search-pagination__page"}}
-            get_max_page_selector = (None, ".search-pagination__page")
-            max_page_regex = ".*? \d* .*? (\d*)"
-            paginator = market_url_parser.get_paginator(
-                get_next_page_selector, get_max_page_selector, max_page_regex
-            )
-            # list(paginator)
-        except Exception as e:
-            logging.error(f"Error while generating paginator")
-            continue
+        logging.debug("Creating paginator")
+        paginator = market_url_parser.get_paginator(
+            get_next_page_selector=(parent_next_page_selector, next_page_selector),
+            get_max_page_selector=None,
+            max_page_regex=None,
+        )
+        # set(paginator)
+        # get_url_by = {"attrs": {"aria-label": "Markets"}}
+        # market_url = search_page_url_parser.find_all(
+        #     by=get_url_by, many=False, get="href"
+        # )
+    except Exception as e:
+        logging.error(f"Error while generating paginator: {e}")
 
-        try:
-            parent_selector = (
-                '[data-trackable="search-results-list"] .o-teaser__content'
-            )
-            date_selector = ".o-teaser__timestamp-date"
+    try:
+        logging.debug("configuring selectors for feed extraction")
+        match_keywords = partial(keywords_manager.match_keywords, url)
+        site_url = url
+        parent_selector = (
+            '.o-teaser--article'
+        )
+        date_selector = ".o-teaser__timestamp-date"
 
-            title_selector = ".o-teaser__heading"
+        title_selector = ".o-teaser__heading"
 
-            title_body_parent_selector = None
-            title_body_selector = ".o-teaser__standfirst"
-            # title_body_selector = "article#article-body p"
-            # _ = market_url_parser.get_from_selector(
-            #     title_body_parent_selector, title_body_selector, get="text"
-            # )
+        title_body_parent_selector = None
+        title_body_selector = ".o-teaser__standfirst"
+        # title_body_selector = "article#article-body p"
+        # _ = market_url_parser.get_from_selector(
+        #     title_body_parent_selector, title_body_selector, get="text"
+        # )
 
-            link_selector = ".o-teaser__heading a"
+        link_selector = ".o-teaser__heading a"
 
-            author_parent_selector = None
-            author_selector = ".article-info p"
-            paginate_filter_and_save_data(
-                output_manager,
-                url,
-                url_id,
-                paginator,
-                partial(keywords_manager.match_keywords, url),
-                title_selector=(parent_selector, title_selector),
-                link_selector=(parent_selector, link_selector),
-                title_body_selector=(title_body_parent_selector, title_body_selector),
-                date_selector=(parent_selector, date_selector),
-                author_selector=(author_parent_selector, author_selector),
-                from_date=from_date,
-                to_date=to_date,
-                visit_to_get=["author"],
-                kill_thread=kill_thread,
-            )
+        author_parent_selector = None
+        author_selector = ".article-info p"
+        paginate_filter_and_save_data(
+            output_manager,
+            site_url,
+            url_id,
+            paginator,
+            match_keywords,
+            title_selector=(parent_selector, title_selector),
+            link_selector=(parent_selector, link_selector),
+            title_body_selector=(title_body_parent_selector, title_body_selector),
+            date_selector=(parent_selector, date_selector),
+            author_selector=(author_parent_selector, author_selector),
+            from_date=from_date,
+            to_date=to_date,
+            visit_to_get=["author"],
+            kill_thread=kill_thread,
+        )
 
-        except Exception as e:
-            logging.error(f"Error while scrapping paginated data: {e}")
+    except Exception as e:
+        logging.error(f"Error while scrapping paginated data: {e}")
     # return scrapped_data
     return
 
