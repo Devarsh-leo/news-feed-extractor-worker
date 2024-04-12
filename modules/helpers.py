@@ -7,7 +7,8 @@ import logging
 from datetime import datetime, timedelta
 import sys
 from urllib.parse import urlparse
-from selenium.webdriver.common.by import By
+
+# from selenium.webdriver.common.by import By
 import re
 
 date_string_format = {
@@ -26,7 +27,7 @@ date_string_format = {
     "www.etfstream.com": "%d %b %Y",
     "www.bestinvest.co.uk": "%d %b %Y",
     "www.thisismoney.co.uk": "%Y-%m-%d %H:%M:%S",
-    "moneytothemasses.com": "%d %b %Y"
+    "moneytothemasses.com": "%d %b %Y",
 }
 date_output_format = "%B %d, %Y"
 # edt_timezone = pytz.timezone("America/New_York")
@@ -59,7 +60,8 @@ def remove_punctuations(text):
     text_without_punctuations = re.sub(punctuation_pattern, "", text)
     return text_without_punctuations
 
-def get_datetime(site_url,str_date):
+
+def get_datetime(site_url, str_date):
     try:
         netloc = urlparse(site_url).netloc
         # logging.debug("transforming date to datetime")
@@ -88,25 +90,25 @@ def get_datetime(site_url,str_date):
                 str_date.strip(),
                 date_string_format.get(site_url, date_string_format.get(netloc)),
             )
-        return repair(site_url,date)
+        return repair(site_url, date)
     except Exception as e:
-        logging.error(
-            f"Error in get_datetime, {e} for {site_url} value: {str_date}"
-        )
+        logging.error(f"Error in get_datetime, {e} for {site_url} value: {str_date}")
 
-def repair(site_url,date):
+
+def repair(site_url, date):
     match site_url:
         case "https://www.reuters.com/news/archive/fundsFundsNews":
             if date.year == 1900:
                 date = todays_time(date)
     return date
 
-def transform_date_to_output_format(site_url,i_date):
+
+def transform_date_to_output_format(site_url, i_date):
     # logging.debug("Transform date to output format")
     try:
         if i_date:
-            if not isinstance(i_date,datetime):
-                date = get_datetime(site_url,i_date)
+            if not isinstance(i_date, datetime):
+                date = get_datetime(site_url, i_date)
             else:
                 date = i_date
             if date:
@@ -148,7 +150,6 @@ def paginate_filter_and_save_data(
     to_date = datetime.strptime(to_date, "%Y-%m-%d")
     logging.debug(f"from_date: {from_date}, to_date: {to_date}")
 
-
     # def get_date(date_time):
     #     return date_time
     # print(1)
@@ -189,7 +190,7 @@ def paginate_filter_and_save_data(
                     # from_parent_by=from_title_container_by
                 )
             # print(2, title_date[-1])
-            title_date_dt = get_datetime(site_url,title_date[-1])
+            title_date_dt = get_datetime(site_url, title_date[-1])
             # print(3)
             # if title_date_dt < from_date:
             #     continue
@@ -278,7 +279,19 @@ def paginate_filter_and_save_data(
             # logging.debug(
             #     f"Page_data {url}: {title, partial_body, title_links, title_date, author}"
             # )
-            just_save_data(page_data,site_url,output_manager, url, url_id, from_date, to_date, title_body_decode,mirror_site_url,match_keywords,current_page)
+            just_save_data(
+                page_data,
+                site_url,
+                output_manager,
+                url,
+                url_id,
+                from_date,
+                to_date,
+                title_body_decode,
+                mirror_site_url,
+                match_keywords,
+                current_page,
+            )
             if end_pagination:
                 break
         except Exception as e:
@@ -305,7 +318,7 @@ def visit_page_and_get_data(
             logging.error("Killing the thread")
             sys.exit()
         url_parser = UrlParser(url, timeout=timeout)
-        if "body" in visit_to_get:        
+        if "body" in visit_to_get:
             text = url_parser.get_from_selector(*title_body_selector, get="text")
             body_text = ("\n".join(text) if text else "").strip()
             body.append(body_text)
@@ -330,17 +343,29 @@ def visit_page_and_get_data(
     return body, author
 
 
-def get_body_using_chrome(driver, url):
-    driver.get(url)
-    elems = driver.find_elements(
-        By.XPATH, "//*[starts-with(@data-testid, 'paragraph-')]"
-    )
-    body = "\n".join(map(lambda x: str(x.text), elems))
-    time.sleep(0.1)
-    return body
+# def get_body_using_chrome(driver, url):
+#     driver.get(url)
+#     elems = driver.find_elements(
+#         By.XPATH, "//*[starts-with(@data-testid, 'paragraph-')]"
+#     )
+#     body = "\n".join(map(lambda x: str(x.text), elems))
+#     time.sleep(0.1)
+#     return body
 
 
-def just_save_data(page_data,site_url,output_manager, url, url_id, from_date, to_date, title_body_decode,mirror_site_url,match_keywords,current_page):
+def just_save_data(
+    page_data,
+    site_url,
+    output_manager,
+    url,
+    url_id,
+    from_date,
+    to_date,
+    title_body_decode,
+    mirror_site_url,
+    match_keywords,
+    current_page,
+):
     filtered_data = []
     # data = next(page_data)
     page_data_headers = [
@@ -356,7 +381,7 @@ def just_save_data(page_data,site_url,output_manager, url, url_id, from_date, to
             if page_data_headers[ind] in ("partial_body",):
                 continue
             logging.debug(f"{page_data_headers[ind]} {item}")
-        data_date = get_datetime(site_url,str(data[3]))
+        data_date = get_datetime(site_url, str(data[3]))
         # logging.debug(f"data_date: {data_date}")
         logging.debug(
             f"{page_data_headers[0]} matched {match_keywords(remove_punctuations(data[0]))}"
@@ -379,7 +404,7 @@ def just_save_data(page_data,site_url,output_manager, url, url_id, from_date, to
                 filtered_data.append(
                     (
                         url,
-                        transform_date_to_output_format(site_url,data[3]),  # Date
+                        transform_date_to_output_format(site_url, data[3]),  # Date
                         data[0],  # Title
                         data[4],  # Author
                         data[2],  # URL
@@ -399,4 +424,3 @@ def just_save_data(page_data,site_url,output_manager, url, url_id, from_date, to
         )
         logging.debug(f"Filtered data: {url}, {filtered_data} ")
     output_manager.append_file(str(url_id), filtered_data)
-
