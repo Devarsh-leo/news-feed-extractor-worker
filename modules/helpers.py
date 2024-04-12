@@ -6,21 +6,27 @@ import time
 import logging
 from datetime import datetime, timedelta
 import sys
-
-
-# import pytz
+from urllib.parse import urlparse
+from selenium.webdriver.common.by import By
+import re
 
 date_string_format = {
     "https://www.ft.com/markets": "%A, %d %B, %Y",
     "https://www.cityam.com/category/markets/": "%B %d, %Y",
-    "https://www.reuters.com/news/archive/fundsFundsNews": (
+    "www.reuters.com": (
+        "%Y-%m-%dT%H:%M:%SZ",
         "%b %d %Y",
         "%H:%M%p EDT",
         "%H:%M%p EST",
     ),
     "https://www.hl.co.uk/news/tags/funds": "%d %b %Y",
     "https://www.investmentweek.co.uk/category/investment/funds": "%d %B %Y",
-    "https://www.morningstar.co.uk/uk/collection/2114/fund-research--insights.aspx?page=1": "%d/%m/%y",
+    "httpswww.morningstar.co.uk/uk/collection/2114/fund-research--insights.aspx?page=1": "%d/%m/%y",
+    "www.morningstar.co.uk": "%d/%m/%y",
+    "www.etfstream.com": "%d %b %Y",
+    "www.bestinvest.co.uk": "%d %b %Y",
+    "www.thisismoney.co.uk": "%Y-%m-%d %H:%M:%S",
+    "moneytothemasses.com": "%d %b %Y"
 }
 date_output_format = "%B %d, %Y"
 # edt_timezone = pytz.timezone("America/New_York")
@@ -46,6 +52,77 @@ def todays_time(
     )
 
 
+def remove_punctuations(text):
+    # Define the pattern to match punctuations
+    punctuation_pattern = r"[^\w\s]"
+    # Substitute punctuations with an empty string
+    text_without_punctuations = re.sub(punctuation_pattern, "", text)
+    return text_without_punctuations
+
+def get_datetime(site_url,str_date):
+    try:
+        netloc = urlparse(site_url).netloc
+        # logging.debug("transforming date to datetime")
+        if site_url not in date_string_format and netloc not in date_string_format:
+            logging.error(f"string format unknown for {site_url} ")
+            return
+        elif not str_date:
+            return
+        if "|" in str_date:
+            str_date = str_date.split("|")[0].strip()
+        if "•" in str_date:
+            str_date = str_date.split("•")[0].strip()
+        if isinstance(
+            date_string_format.get(site_url, date_string_format.get(netloc)), tuple
+        ):
+            for format in date_string_format.get(
+                site_url, date_string_format.get(netloc)
+            ):
+                try:
+                    date = datetime.strptime(str_date.strip(), format)
+                    break
+                except:
+                    pass
+        else:
+            date = datetime.strptime(
+                str_date.strip(),
+                date_string_format.get(site_url, date_string_format.get(netloc)),
+            )
+        return repair(site_url,date)
+    except Exception as e:
+        logging.error(
+            f"Error in get_datetime, {e} for {site_url} value: {str_date}"
+        )
+
+def repair(site_url,date):
+    match site_url:
+        case "https://www.reuters.com/news/archive/fundsFundsNews":
+            if date.year == 1900:
+                date = todays_time(date)
+    return date
+
+def transform_date_to_output_format(site_url,i_date):
+    # logging.debug("Transform date to output format")
+    try:
+        if i_date:
+            if not isinstance(i_date,datetime):
+                date = get_datetime(site_url,i_date)
+            else:
+                date = i_date
+            if date:
+                date = date.strftime(date_output_format)
+            else:
+                logging.warning(
+                    f"No date value after get it from get_datetime func! for date: {i_date}"
+                )
+        else:
+            logging.warning("Date is empty")
+    except Exception as e:
+        logging.error(f"Error {e}")
+        raise e
+    return date
+
+
 def paginate_filter_and_save_data(
     output_manager: OutputManager,
     site_url,
@@ -62,68 +139,22 @@ def paginate_filter_and_save_data(
     visit_to_get=[],
     timeout=3,
     kill_thread=[],
+    mirror_site_url=None,
 ):
     logging.debug("converting from_date,to_date to date_time")
+    # from_date = '2024-04-06'
+    # to_date = '2024-04-07'
     from_date = datetime.strptime(from_date, "%Y-%m-%d")
     to_date = datetime.strptime(to_date, "%Y-%m-%d")
     logging.debug(f"from_date: {from_date}, to_date: {to_date}")
 
-    def get_datetime(str_date):
-        try:
-            # logging.debug("transforming date to datetime")
-            if site_url not in date_string_format:
-                logging.error(f"strint format unknown for {site_url} ")
-                return
-            elif not str_date:
-                return
-            if "|" in str_date:
-                str_date = str_date.split("|")[0].strip()
-            if "•" in str_date:
-                str_date = str_date.split("•")[0].strip()
-            if isinstance(date_string_format[site_url], tuple):
-                for format in date_string_format[site_url]:
-                    try:
-                        date = datetime.strptime(str_date.strip(), format)
-                        break
-                    except:
-                        pass
-            else:
-                date = datetime.strptime(str_date.strip(), date_string_format[site_url])
-            return repair(date)
-        except Exception as e:
-            logging.error(
-                f"Error in get_datetime, {e} for {site_url} value: {str_date}"
-            )
-
-    def repair(date):
-        match site_url:
-            case "https://www.reuters.com/news/archive/fundsFundsNews":
-                if date.year == 1900:
-                    date = todays_time(date)
-        return date
-
-    def transform_date_to_output_format(i_date):
-        # logging.debug("Transform date to output format")
-        try:
-            if i_date:
-                date = get_datetime(i_date)
-                if date:
-                    date = date.strftime(date_output_format)
-                else:
-                    logging.warning(
-                        f"No date value after get it from get_datetime func! for date: {i_date}"
-                    )
-            else:
-                logging.warning("Date is empty")
-        except Exception as e:
-            logging.error(f"Error {e}")
-            raise e
-        return date
 
     # def get_date(date_time):
     #     return date_time
     # print(1)
     # current_page, url = next(paginator)
+    if not mirror_site_url:
+        mirror_site_url = site_url
     end_pagination = None
     for current_page, url in paginator:
         if kill_thread:
@@ -135,9 +166,21 @@ def paginate_filter_and_save_data(
             paginated_url_parser = UrlParser(url, timeout=timeout, max_retries=5)
             assert paginated_url_parser.soup, f"Failed to load url: {url}"
             # 3
-            if site_url == 'https://www.ft.com/markets':
-                title_date = paginated_url_parser.get_from_selector_relative_traceback_to_parent(
-                    None,'.o-teaser--article',{'name':'li'},'.stream-card__date time',get='text'
+            if site_url == "https://www.ft.com/markets":
+                title_date = (
+                    paginated_url_parser.get_from_selector_relative_traceback_to_parent(
+                        None,
+                        ".o-teaser--article",
+                        {"name": "li"},
+                        ".stream-card__date time",
+                        get="text",
+                    )
+                )
+            elif "www.bestinvest.co.uk" in site_url:
+                title_date = paginated_url_parser.get_from_selector(
+                    *date_selector,
+                    get=lambda x: x.split("|")[0].strip(),
+                    # from_parent_by=from_title_container_by
                 )
             else:
                 title_date = paginated_url_parser.get_from_selector(
@@ -146,7 +189,7 @@ def paginate_filter_and_save_data(
                     # from_parent_by=from_title_container_by
                 )
             # print(2, title_date[-1])
-            title_date_dt = get_datetime(title_date[-1])
+            title_date_dt = get_datetime(site_url,title_date[-1])
             # print(3)
             # if title_date_dt < from_date:
             #     continue
@@ -175,6 +218,13 @@ def paginate_filter_and_save_data(
                 get="href",
                 # from_parent_by=from_title_container_by,
             )
+            # canonical_title_links = paginated_url_parser.get_from_selector(
+            #     *link_selector,
+            #     get="href",
+            #     # from_parent_by=from_title_container_by,
+            # )
+            # domain_url = 'https://www.reuters.com'
+            # title_links = list(map(lambda x: f"{domain_url}{x}",canonical_title_links))
 
             # 4
             if "author" not in visit_to_get:
@@ -215,6 +265,7 @@ def paginate_filter_and_save_data(
 
             if paginated_url_parser.soup:
                 page_data = zip(title, partial_body, title_links, title_date, author)
+                # next(page_data)
             else:
                 # on request timed out reached limit
                 continue
@@ -227,80 +278,7 @@ def paginate_filter_and_save_data(
             # logging.debug(
             #     f"Page_data {url}: {title, partial_body, title_links, title_date, author}"
             # )
-            filtered_data = []
-            # data = next(page_data)
-            page_data_headers = [
-                "title",
-                "partial_body",
-                "title_links",
-                "title_date",
-                "author",
-            ]
-            for data in page_data:
-                for ind, item in enumerate(data):
-                    if page_data_headers[ind] in ("partial_body",):
-                        continue
-                    logging.debug(f"{page_data_headers[ind]} {item}")
-                data_date = get_datetime(data[3])
-                # logging.debug(f"data_date: {data_date}")
-                logging.debug(
-                    f"{page_data_headers[0]} matched {match_keywords(data[0])}"
-                )
-                logging.debug(
-                    f"{page_data_headers[1]} matched {match_keywords(data[1])}"
-                )
-                if match_keywords(data[0]) or match_keywords(data[1]):
-                    logging.debug(
-                        f"data_date: {data_date.date()} form_date: {from_date.date()} to_date: {to_date.date()}, consitions {from_date.date() == data_date.date()} or {to_date.date() == data_date.date()} or {from_date.date() <= data_date.date() <= to_date.date()} or {not data_date}"
-                    )
-                    if (
-                        (from_date.date() == data_date.date())
-                        or (to_date.date() == data_date.date())
-                        or (from_date.date() < data_date.date() < to_date.date())
-                        or (not data_date)
-                    ):
-                        filtered_data.append(
-                            (
-                                url,
-                                transform_date_to_output_format(data[3]),  # Date
-                                data[0],  # Title
-                                data[4],  # Author
-                                data[2],  # URL
-                                *title_body_decode(
-                                    match_keywords(data[0]), match_keywords(data[1])
-                                ),  # Title-Body keywords
-                                site_url,  # Site
-                            )
-                        )
-
-            # filtered_data = (
-            # (
-            #     url,
-            #     transform_date_to_output_format(data[3]),  # Date
-            #     data[0],  # Title
-            #     data[4],  # Author
-            #     data[2],  # URL
-            #     *title_body_decode(
-            #         match_keywords(data[0]), match_keywords(data[1])
-            #     ),  # Title-Body keywords
-            #     site_url,  # Site
-            # )
-            # for data in page_data
-            # if (match_keywords(data[0]) or match_keywords(data[1]))
-            # and (
-            #     from_date <= get_datetime(data[3]) <= to_date
-            #     if get_datetime(data[3])
-            #     else True
-            # )
-            # )
-            logger = logging.getLogger()
-            if logger.getEffectiveLevel() == logging.DEBUG:
-                filtered_data = list(filtered_data)
-                logging.debug(
-                    f"Saving data for page: {current_page}, len: {len(filtered_data)}"
-                )
-                logging.debug(f"Filtered data: {url}, {filtered_data} ")
-            output_manager.append_file(str(url_id), filtered_data)
+            just_save_data(page_data,site_url,output_manager, url, url_id, from_date, to_date, title_body_decode,mirror_site_url,match_keywords,current_page)
             if end_pagination:
                 break
         except Exception as e:
@@ -320,26 +298,105 @@ def visit_page_and_get_data(
     logging.info(f"Visiting pages for: {site_url}")
     body = []
     author = []
+    netloc = urlparse(site_url).netloc
+
     for url in title_links:
         if kill_thread:
             logging.error("Killing the thread")
             sys.exit()
         url_parser = UrlParser(url, timeout=timeout)
-        if "body" in visit_to_get:
+        if "body" in visit_to_get:        
             text = url_parser.get_from_selector(*title_body_selector, get="text")
             body_text = ("\n".join(text) if text else "").strip()
             body.append(body_text)
             if not body_text:
                 logging.warning(f"Body not located for url: {url}")
         if "author" in visit_to_get:
-            article_author = url_parser.get_from_selector(*author_selector, get="text")
+            if netloc == "www.bestinvest.co.uk":
+                getter = lambda x: x.replace("Written by", "")
+            else:
+                getter = "text"
+            article_author = url_parser.get_from_selector(*author_selector, get=getter)
             author_text = (
                 (", ".join(article_author) if article_author else "")
                 .strip()
-                .strip(", ")
+                .strip(",")
+                .strip()
             )
             author.append(author_text)
             if not author_text:
                 logging.warning(f"author not located for url: {url}")
     logging.debug(f"Extracted body: {len(body)}, authors: {len(author)}")
     return body, author
+
+
+def get_body_using_chrome(driver, url):
+    driver.get(url)
+    elems = driver.find_elements(
+        By.XPATH, "//*[starts-with(@data-testid, 'paragraph-')]"
+    )
+    body = "\n".join(map(lambda x: str(x.text), elems))
+    time.sleep(0.1)
+    return body
+
+
+def just_save_data(page_data,site_url,output_manager, url, url_id, from_date, to_date, title_body_decode,mirror_site_url,match_keywords,current_page):
+    filtered_data = []
+    # data = next(page_data)
+    page_data_headers = [
+        "title",
+        "partial_body",
+        "title_links",
+        "title_date",
+        "author",
+    ]
+    # data = next(page_data)
+    for data in page_data:
+        for ind, item in enumerate(data):
+            if page_data_headers[ind] in ("partial_body",):
+                continue
+            logging.debug(f"{page_data_headers[ind]} {item}")
+        data_date = get_datetime(site_url,str(data[3]))
+        # logging.debug(f"data_date: {data_date}")
+        logging.debug(
+            f"{page_data_headers[0]} matched {match_keywords(remove_punctuations(data[0]))}"
+        )
+        logging.debug(
+            f"{page_data_headers[1]} matched {match_keywords(remove_punctuations(data[1]))}"
+        )
+        if match_keywords(remove_punctuations(data[0])) or match_keywords(
+            remove_punctuations(data[1])
+        ):
+            logging.debug(
+                f"data_date: {data_date.date()} form_date: {from_date.date()} to_date: {to_date.date()}, consitions {from_date.date() == data_date.date()} or {to_date.date() == data_date.date()} or {from_date.date() <= data_date.date() <= to_date.date()} or {not data_date}"
+            )
+            if (
+                (from_date.date() == data_date.date())
+                or (to_date.date() == data_date.date())
+                or (from_date.date() < data_date.date() < to_date.date())
+                or (not data_date)
+            ):
+                filtered_data.append(
+                    (
+                        url,
+                        transform_date_to_output_format(site_url,data[3]),  # Date
+                        data[0],  # Title
+                        data[4],  # Author
+                        data[2],  # URL
+                        *title_body_decode(
+                            match_keywords(remove_punctuations(data[0])),
+                            match_keywords(remove_punctuations(data[1])),
+                        ),  # Title-Body keywords
+                        mirror_site_url,  # Site
+                    )
+                )
+
+    logger = logging.getLogger()
+    if logger.getEffectiveLevel() == logging.DEBUG:
+        filtered_data = list(filtered_data)
+        logging.debug(
+            f"Saving data for page: {current_page}, len: {len(filtered_data)}"
+        )
+        logging.debug(f"Filtered data: {url}, {filtered_data} ")
+    output_manager.append_file(str(url_id), filtered_data)
+

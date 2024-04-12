@@ -4,7 +4,7 @@ import time
 import re
 import requests
 from urllib.parse import urlparse, urljoin, parse_qs, urlencode, urlunparse
-
+import xml.etree.ElementTree as ET
 
 class UrlParser:
     __slots__ = (
@@ -43,7 +43,12 @@ class UrlParser:
                     self.url, timeout=self.timeout + extended_timeout
                 )
                 if response.status_code == self.expected_status_code:
-                    return BeautifulSoup(response.text, "html.parser")
+                    if "application/json" in response.headers.get("Content-Type"):
+                        html_output = self._json_to_html(response.json())
+                        soup = BeautifulSoup(html_output, "html.parser")
+                    else:
+                        soup = BeautifulSoup(response.text, "html.parser")
+                    return soup 
                 elif response.status_code in (429, 502):
                     logging.warning(
                         f"Retrying after {self.api_limit_delay} seconds ({retries}/{self.max_retries})"
@@ -82,14 +87,13 @@ class UrlParser:
             ), f"{len_data} elements are located, expected only 1 element"
 
     def _get_from_element(self, tags, get):
-        # if isinstance(get,dict):
-        #     key , argument = next(iter(get.items()))
-        # else:
-        #     key = 'text'
-
+        # custom function call
+        if callable(get):
+            return [get(tag.get_text().strip()) if tag else "" for tag in tags]
+        
         match get:
             case "text":
-                return [tag.get_text().strip() if tag else "" for tag in tags]
+                return [re.sub(r'\xa0', ' ', tag.get_text().strip()) if tag else "" for tag in tags]
 
             case "href":
                 return [
@@ -114,7 +118,6 @@ class UrlParser:
         updated_url = ""
         if parsed_url.netloc in {
             "www.ft.com",
-            "www.reuters.com",
             "www.morningstar.co.uk",
             "www.hl.co.uk",
         }:
@@ -135,9 +138,40 @@ class UrlParser:
                     parsed_url.fragment,
                 )
             )
-        elif parsed_url.netloc in {"www.cityam.com", "www.investmentweek.co.uk"}:
+        elif parsed_url.netloc in {"www.cityam.com", "www.investmentweek.co.uk","www.etfstream.com"}:
             updated_url = re.sub(
                 "page/([0-9]*)?", f"page/{str(current_page)}", parsed_url.geturl()
+            )
+        elif parsed_url.netloc in {'www.reuters.com'}:
+            query_params['offset'] = 20 * (current_page-1)
+            query_params['size'] = 20
+            updated_url = urlunparse(
+                (
+                    parsed_url.scheme,
+                    parsed_url.netloc,
+                    parsed_url.path,
+                    parsed_url.params,
+                    urlencode(
+                        query_params, doseq=True
+                    ),  # doseq=True for multiple values with the same key
+                    parsed_url.fragment,
+                )
+            )
+        elif parsed_url.netloc in {'www.bestinvest.co.uk',"moneytothemasses.com"}:
+            new_path = parsed_url.path.split('/')
+            new_path[-1] = str(current_page)
+            new_path = "/".join(new_path)
+            updated_url = urlunparse(
+                (
+                    parsed_url.scheme,
+                    parsed_url.netloc,
+                    new_path,
+                    parsed_url.params,
+                    urlencode(
+                        query_params, doseq=True
+                    ),  # doseq=True for multiple values with the same key
+                    parsed_url.fragment,
+                )
             )
         return updated_url
 
@@ -157,6 +191,32 @@ class UrlParser:
 
             current_page += 1
         logging.debug(f"Breaking pagination url generation on {current_page}")
+
+    def _json_to_html(self,json_data):
+        html = '<ul>'  # Start with an unordered list
+
+        for key, value in json_data.items():
+            html += f'<{key}>'
+            if isinstance(value, dict):  # If the value is a dictionary, recursively convert it
+                html += self._json_to_html(value)
+            elif isinstance(value, list):  # If the value is a list, iterate over its items
+                html += f'<ul>'
+                for item in value:
+                    if isinstance(item, dict):  # If an item is a dictionary, recursively convert it
+                        html += self._json_to_html(item)
+                    elif isinstance(item, list):  # If an item is a list, recursively convert it
+                        html += self._json_to_html({"list_item": item})
+                    else:
+                        html += f'<li>{value}</li>'
+                html += '</ul>'
+            else:  # Otherwise, just add the value
+                html += f'{value}'
+                # html += str(value)
+
+            html += f'</{key}>'
+
+        html += '</ul>'
+        return html
 
     def get_from_selector(self, parent_selector=None, selector=None, get="text"):
         if parent_selector:
@@ -300,7 +360,7 @@ class UrlParser:
                     f"Failed to convert max page to int: {max_page}, Max Pages fetched will be {self.default_max_page}"
                 )
         else:
-            max_page = self.max_page_limits.get(urlparse(self.url).netloc, 1000)
+            max_page = self.max_page_limits.get(urlparse(self.url).netloc, 100)
             logging.info(f"Setting max_page to {max_page}")
         # Inform when search results have more pages than the platform supports to fetch per query
         if self.max_page_limits.get(urlparse(self.url).netloc) and (
@@ -312,3 +372,50 @@ class UrlParser:
             max_page = self.max_page_limits[urlparse(self.url).netloc]
 
         return self._generate_next_urls(next_page_url, max_page=max_page)
+
+class XMLParser:
+    def __init__(self, url, max_retries=3, retry_delay=1):
+        self.url = url
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+        self.root_element = None  # Initialize root element attribute
+        self.fetch_and_parse()
+
+    def fetch_and_parse(self):
+        retries = 0
+        while retries < self.max_retries:
+            try:
+                response = requests.get(self.url)
+                if response.status_code == 200:
+                    xml_data = response.content
+                    self.root_element = ET.fromstring(xml_data)
+                    return self.root_element
+                else:
+                    print(f"Failed to fetch XML from {self.url}. Status code: {response.status_code}")
+                    return None
+            except requests.RequestException as e:
+                print(f"Error fetching XML from {self.url}: {e}")
+                retries += 1
+                if retries < self.max_retries:
+                    print(f"Retrying in {self.retry_delay} seconds...")
+                    time.sleep(self.retry_delay)
+        print(f"Maximum retries ({self.max_retries}) reached. Unable to fetch XML from {self.url}.")
+        return None
+
+    def get_tag_data(self, tag_name):
+        if self.root_element is None:
+            self.fetch_and_parse()  # Ensure root element is fetched before accessing
+        if self.root_element is not None:
+            tag_data = [elem.text for elem in self.root_element.findall(tag_name)]
+            return tag_data
+        else:
+            return None
+        
+
+# # Iterate over 'url' elements
+# for url in self.root_element.findall('{http://www.sitemaps.org/schemas/sitemap/0.9}url'):
+#     loc = url.find('{http://www.sitemaps.org/schemas/sitemap/0.9}loc').text
+#     lastmod = url.find('{http://www.sitemaps.org/schemas/sitemap/0.9}lastmod').text
+#     changefreq = url.find('{http://www.sitemaps.org/schemas/sitemap/0.9}changefreq').text
+#     priority = url.find('{http://www.sitemaps.org/schemas/sitemap/0.9}priority').text
+    

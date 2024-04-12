@@ -1,7 +1,7 @@
 import os
 import logging
 import json
-
+import re
 
 class KeywordsManager:
     def __init__(self, configs):
@@ -43,13 +43,20 @@ class KeywordsManager:
             logging.error(f"Failed to get keyword: {e}")
 
         return set()
-
+    def match_exact_keyword(self,keyword, text):
+        pattern = r'\b' + re.escape(keyword.lower()) + r'\b'
+        match = re.search(pattern, text.lower())
+        if match:
+            return True
+        else:
+            return False
+    
     def match_keywords(self, url: str, title: str):
         if not self.keywords:
             self.keywords = self.load_keywords()
         assert url in self.keywords, f"keywords list not configured for {url}"
         return ":".join(
-            [keyword for keyword in self.keywords[url] if keyword in title.lower()]
+            [keyword for keyword in self.keywords[url] if self.match_exact_keyword(keyword, title)]
         )
 
     def update_all_keywords(self, data: dict) -> None:

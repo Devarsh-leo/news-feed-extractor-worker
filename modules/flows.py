@@ -5,11 +5,12 @@ import time
 from uuid import uuid4
 from functools import partial
 from concurrent.futures import ThreadPoolExecutor, wait
+from datetime import datetime, timedelta
 
-from modules.url_parser import UrlParser
+from modules.url_parser import UrlParser, XMLParser
 from modules.keywords_manager import KeywordsManager
 from modules.output_manager import OutputManager
-from modules.helpers import paginate_filter_and_save_data
+from modules.helpers import paginate_filter_and_save_data,just_save_data
 from modules.general import calculate_time_taken, validate_configs
 
 
@@ -54,9 +55,7 @@ def search_ft_markets(output_manager, url, url_id, from_date, to_date, kill_thre
         logging.debug("configuring selectors for feed extraction")
         match_keywords = partial(keywords_manager.match_keywords, url)
         site_url = url
-        parent_selector = (
-            '.o-teaser--article'
-        )
+        parent_selector = ".o-teaser--article"
         date_selector = ".o-teaser__timestamp-date"
 
         title_selector = ".o-teaser__heading"
@@ -185,11 +184,11 @@ def search_reuters_fundnews(
     # time.sleep(0.01)
     # logging.info(f"current keyword: {keyword}")
     try:
-        market_url = "https://www.reuters.com/news/archive/fundsFundsNews?view=page&page=1&pageSize=10"
+        market_url = """https://www.reuters.com/pf/api/v3/content/fetch/articles-by-section-alias-or-id-v1?query={"arc-site":"reuters","called_from_a_component":true,"fetch_type":"collection","offset":21,"section_id":"/markets/funds/","size":9,"website":"reuters"}&d=179&_website=reuters"""
         market_url_parser = UrlParser(market_url)
         self = market_url_parser
         parent_next_page_selector = None
-        next_page_selector = 'a:-soup-contains("Earlier")'
+        next_page_selector = None
         # self.get_from_selector(
         #     parent_next_page_selector, next_page_selector, get="href"
         # )
@@ -213,30 +212,31 @@ def search_reuters_fundnews(
         match_keywords = partial(keywords_manager.match_keywords, site_url)
 
         self = market_url_parser
-        parent_selector = "#sectionTitle ~ .module div.news-headline-list article"
+        parent_selector = None
         date_parent_selector = parent_selector
-        date_selector = "time"
+        date_selector = "articles display_time"
         # _ = self.soup.select(date_parent_selector)
         # len(_)
         # self.get_from_selector(date_parent_selector, date_selector, get="text")
         # self.url
 
         title_parent_selector = parent_selector
-        title_selector = ".story-title"
+        title_selector = "articles title"
         # _ = self.get_from_selector(title_parent_selector, title_selector, get="text")
 
         title_body_parent_selector = None
         title_body_selector = "p[data-testid*='paragraph'] ,p[class*='paragraph']"
-        _ = self.get_from_selector(
-            title_body_parent_selector, title_body_selector, get="text"
-        )
+        # _ = self.get_from_selector(
+        #     title_body_parent_selector, title_body_selector, get="text"
+        # )
 
         link_parent_selector = parent_selector
-        link_selector = "a"
+        link_selector = "articles canonical_url"
+        # "https://www.reuters.com"
         # _ = self.get_from_selector(link_parent_selector, link_selector, get="href")
 
-        author_parent_selector = None
-        author_selector = "header div[class*='article-header']  a[href*='author'],header div[class*='article-header']  span:contains('Reuters'), [class*='ArticleBody-byline'] a, [class*='ArticleBody-byline'] span"
+        author_parent_selector = "articles > ul > ul > authors"
+        author_selector = "name"
         # _ = self.get_from_selector(author_parent_selector, author_selector, get="text")
         logging.debug("starting to scrape paginated urls")
         paginate_filter_and_save_data(
@@ -252,7 +252,7 @@ def search_reuters_fundnews(
             author_selector=(author_parent_selector, author_selector),
             from_date=from_date,
             to_date=to_date,
-            visit_to_get=["body", "author"],
+            visit_to_get=["body"],
             kill_thread=kill_thread,
         )
         # set(
@@ -391,7 +391,7 @@ def search_hargreaves_lansdown_funds(
 def search_investmentweek_funds(
     output_manager, url, url_id, from_date, to_date, kill_thread
 ):
-    logging.debug("Starting search for search_hargreaves_lansdown_funds")
+    logging.debug("Starting search for search_investmentweek_funds")
     # date format YYYY-MM-DD
 
     try:
@@ -487,10 +487,108 @@ def search_investmentweek_funds(
     return
 
 
+def search_etfstream(output_manager, url, url_id, from_date, to_date, kill_thread):
+    logging.debug("Starting search for search_etfstream")
+    # date format YYYY-MM-DD
+
+    try:
+        market_url = "https://www.etfstream.com/news/page/1"
+        logging.info(f"Processing url: {market_url}")
+        market_url_parser = UrlParser(market_url, timeout=5)
+        assert market_url_parser.soup, f"Failed to load url: {url}"
+        logging.debug("market_url loaded successfully")
+        self = market_url_parser
+        parent_next_page_selector = None
+        next_page_selector = None
+        # self.get_from_selector(
+        #     parent_next_page_selector, next_page_selector, get="href"
+        # )
+        # parent_max_page_selector = None
+        # max_page_selector = None
+
+        # max_page_regex = "Page (.*)?"
+        logging.debug("Creating paginator")
+        paginator = market_url_parser.get_paginator(
+            get_next_page_selector=(parent_next_page_selector, next_page_selector),
+            get_max_page_selector=None,
+            max_page_regex=None,
+        )
+        # next(paginator)
+    except Exception as e:
+        logging.error(f"Error while generating paginator: {e}")
+
+    try:
+        logging.debug("configuring selectors for feed extraction")
+
+        match_keywords = partial(keywords_manager.match_keywords, url)
+        site_url = url
+
+        # self = market_url_parser
+        parent_selector = ".article-details"
+        date_parent_selector = parent_selector
+        date_selector = "time"
+        # _ = self.soup.select(date_parent_selector)
+        # len(_)
+        # _ = self.get_from_selector(date_parent_selector, date_selector, get="text")
+        # self.url
+
+        title_parent_selector = parent_selector
+        title_selector = "h4"
+        # _ = self.get_from_selector(title_parent_selector, title_selector, get="text")
+
+        title_body_parent_selector = None
+        title_body_selector = "article"
+        _ = self.get_from_selector(
+            title_body_parent_selector, title_body_selector, get="text"
+        )
+
+        link_parent_selector = None
+        link_selector = "a:has(.article-container)"
+        # _ = self.get_from_selector(link_parent_selector, link_selector, get="href")
+
+        author_parent_selector = parent_selector
+        author_selector = ".article-author-date p"
+        # _ = self.get_from_selector(author_parent_selector, author_selector, get="text")
+
+        logging.debug("starting to scrape paginated urls")
+        paginate_filter_and_save_data(
+            output_manager,
+            site_url,
+            url_id,
+            paginator,
+            match_keywords,
+            title_selector=(title_parent_selector, title_selector),
+            link_selector=(link_parent_selector, link_selector),
+            title_body_selector=(title_body_parent_selector, title_body_selector),
+            date_selector=(date_parent_selector, date_selector),
+            author_selector=(author_parent_selector, author_selector),
+            from_date=from_date,
+            to_date=to_date,
+            visit_to_get=["body"],
+            timeout=5,
+            kill_thread=kill_thread,
+        )
+    # set(
+    #     map(
+    #         scrapped_data.extend,
+    #         (
+    #             _data
+    #             for _data in [
+    #                 list(data) for data in scrapped_generator_data.values()
+    #             ]
+    #         ),
+    #     )
+    # )
+    except Exception as e:
+        logging.error(f"Error while scrapping paginated data: {e}")
+    # return scrapped_data
+    return
+
+
 def search_morningstar_fund_research(
     output_manager, url, url_id, from_date, to_date, kill_thread
 ):
-    logging.debug("Starting search for search_hargreaves_lansdown_funds")
+    logging.debug("Starting search for search_morningstar_fund_research")
     # date format YYYY-MM-DD
 
     try:
@@ -589,6 +687,366 @@ def search_morningstar_fund_research(
     return
 
 
+def search_morningstar_investment_trust_research(
+    output_manager, url, url_id, from_date, to_date, kill_thread
+):
+    logging.debug("Starting search for search_morningstar_fund_research")
+    # date format YYYY-MM-DD
+
+    try:
+        market_url = "https://www.morningstar.co.uk/uk/collection/2135/investment-trust-research--insights.aspx"
+        market_url_parser = UrlParser(market_url, timeout=5)
+        assert market_url_parser.soup, f"Failed to load url: {url}"
+        logging.debug("market_url loaded successfully")
+        self = market_url_parser
+        parent_next_page_selector = None
+        next_page_selector = None
+        # self.get_from_selector(
+        #     parent_next_page_selector, next_page_selector, get="href"
+        # )
+        # parent_max_page_selector = None
+        # max_page_selector = None
+
+        # max_page_regex = "Page (.*)?"
+        logging.debug("Creating paginator")
+        paginator = market_url_parser.get_paginator(
+            get_next_page_selector=(parent_next_page_selector, next_page_selector),
+            get_max_page_selector=None,
+            max_page_regex=None,
+        )
+        # next(paginator)
+    except Exception as e:
+        logging.error(f"Error while generating paginator: {e}")
+
+    try:
+        logging.debug("configuring selectors for feed extraction")
+
+        match_keywords = partial(keywords_manager.match_keywords, url)
+        site_url = url
+
+        # self = market_url_parser
+        parent_selector = None
+        date_parent_selector = parent_selector
+        date_selector = "td[headers='archive_date']"
+        # _ = self.soup.select(date_parent_selector)
+        # len(_)
+        # _ = self.get_from_selector(date_parent_selector, date_selector, get="text")
+        # self.url
+
+        title_parent_selector = parent_selector
+        title_selector = "td[headers='archive_title']"
+        # _ = self.get_from_selector(title_parent_selector, title_selector, get="text")
+
+        title_body_parent_selector = None
+        title_body_selector = ".seopurpose h2, .seopurpose p"
+        # self.soup.select(title_body_parent_selector)[0].select("p")
+        # _ = self.get_from_selector(
+        #     title_body_parent_selector,
+        #     title_body_selector,
+        #     get="text",
+        # )
+
+        link_parent_selector = "td[headers='archive_title']"
+        link_selector = "a"
+        # _ = self.get_from_selector(link_parent_selector, link_selector, get="href")
+
+        author_parent_selector = parent_selector
+        author_selector = "td[headers='archive_auth']"
+        # _ = self.get_from_selector(author_parent_selector, author_selector, get="text")
+
+        logging.debug("starting to scrape paginated urls")
+        paginate_filter_and_save_data(
+            output_manager,
+            site_url,
+            url_id,
+            paginator,
+            match_keywords,
+            title_selector=(title_parent_selector, title_selector),
+            link_selector=(link_parent_selector, link_selector),
+            title_body_selector=(title_body_parent_selector, title_body_selector),
+            date_selector=(date_parent_selector, date_selector),
+            author_selector=(author_parent_selector, author_selector),
+            from_date=from_date,
+            to_date=to_date,
+            visit_to_get=["body"],
+            kill_thread=kill_thread,
+            # timeout=5,
+        )
+        # set(
+        #     map(
+        #         scrapped_data.extend,
+        #         (
+        #             _data
+        #             for _data in [
+        #                 list(data) for data in scrapped_generator_data.values()
+        #             ]
+        #         ),
+        #     )
+        # )
+    except Exception as e:
+        logging.error(f"Error while scrapping paginated data: {e}")
+    # return scrapped_data
+    return
+
+
+def bestinvest(output_manager, url, url_id, from_date, to_date, kill_thread):
+    logging.debug("Starting search for search_morningstar_fund_research")
+    # date format YYYY-MM-DD
+
+    try:
+        market_url = "https://www.bestinvest.co.uk/news/investing/1"
+        market_url_parser = UrlParser(market_url, timeout=5)
+        assert market_url_parser.soup, f"Failed to load url: {url}"
+        logging.debug("market_url loaded successfully")
+        self = market_url_parser
+        parent_next_page_selector = None
+        next_page_selector = None
+        # self.get_from_selector(
+        #     parent_next_page_selector, next_page_selector, get="href"
+        # )
+        # parent_max_page_selector = None
+        # max_page_selector = None
+
+        # max_page_regex = "Page (.*)?"
+        logging.debug("Creating paginator")
+        paginator = market_url_parser.get_paginator(
+            get_next_page_selector=(parent_next_page_selector, next_page_selector),
+            get_max_page_selector=None,
+            max_page_regex=None,
+        )
+        # next(paginator)
+    except Exception as e:
+        logging.error(f"Error while generating paginator: {e}")
+
+    try:
+        logging.debug("configuring selectors for feed extraction")
+
+        match_keywords = partial(keywords_manager.match_keywords, url)
+        site_url = url
+
+        # self = market_url_parser
+        parent_selector = None
+        date_parent_selector = parent_selector
+        date_selector = ".jLomYA"
+        # -- getter
+        # lambda x:x.split('|')[0].strip()
+        # _ = self.soup.select(date_parent_selector)
+        # len(_)
+        # _ = self.get_from_selector(date_parent_selector, date_selector, get=lambda x:x.split('|')[0].strip())
+        # self.url
+
+        title_parent_selector = 'div[data-test="ArticleCard"]'
+        title_selector = "h4"
+        # _ = self.get_from_selector(title_parent_selector, title_selector, get="text")
+
+        title_body_parent_selector = None
+        title_body_selector = ".RteTextRenderer-root"
+        # self.soup.select(title_body_parent_selector)[0].select("p")
+        # _ = self.get_from_selector(
+        #     title_body_parent_selector,
+        #     title_body_selector,
+        #     get="text",
+        # )
+
+        link_parent_selector = title_parent_selector
+        link_selector = "a"
+        _ = self.get_from_selector(link_parent_selector, link_selector, get="href")
+
+        author_parent_selector = parent_selector
+        author_selector = 'span:-soup-contains("Written by")'
+        # _ = self.get_from_selector(author_parent_selector, author_selector, get=lambda x:x.replace("Written by",""))
+
+        logging.debug("starting to scrape paginated urls")
+        paginate_filter_and_save_data(
+            output_manager,
+            site_url,
+            url_id,
+            paginator,
+            match_keywords,
+            title_selector=(title_parent_selector, title_selector),
+            link_selector=(link_parent_selector, link_selector),
+            title_body_selector=(title_body_parent_selector, title_body_selector),
+            date_selector=(date_parent_selector, date_selector),
+            author_selector=(author_parent_selector, author_selector),
+            from_date=from_date,
+            to_date=to_date,
+            visit_to_get=["body", "author"],
+            kill_thread=kill_thread,
+            # timeout=5,
+        )
+        # set(
+        #     map(
+        #         scrapped_data.extend,
+        #         (
+        #             _data
+        #             for _data in [
+        #                 list(data) for data in scrapped_generator_data.values()
+        #             ]
+        #         ),
+        #     )
+        # )
+    except Exception as e:
+        logging.error(f"Error while scrapping paginated data: {e}")
+    # return scrapped_data
+    return
+
+
+def this_is_money(output_manager, site_url, url_id, from_date, to_date, kill_thread):
+    try:
+        from_date = datetime.strptime(from_date, "%Y-%m-%d")
+        to_date = datetime.strptime(to_date, "%Y-%m-%d")
+        current_date = from_date
+        titles = []
+        bodies = []
+        title_links = []
+        title_dates = []
+        authors = []
+        while current_date <= to_date:
+            logging.info(f"Searching thisismoney for date: {current_date}")
+            print(f"Searching thisismoney for date: {current_date}")
+            xml_url = f'https://www.thisismoney.co.uk/sitemap-articles-day~{current_date.strftime("%Y-%m-%d")}.xml'
+            parser = XMLParser(xml_url)
+            for url in parser.root_element.findall('{http://www.sitemaps.org/schemas/sitemap/0.9}url'):
+                article_link = url.find('{http://www.sitemaps.org/schemas/sitemap/0.9}loc').text
+                print(f"searching for url: {article_link}")
+                lastmod = url.find('{http://www.sitemaps.org/schemas/sitemap/0.9}lastmod').text
+                try:
+                    lastmod = datetime.strptime(lastmod,"%Y-%m-%dT%H:%M:%SZ")
+                except Exception as e:
+                    logging.error(f"Error converting lastmod to datetime: {lastmod} for thisismoney url")
+                if not article_link:continue
+                parsed_article = UrlParser(article_link)
+                title_links.append(article_link)
+                # Title
+                title = parsed_article.get_from_selector(selector='h1')
+                if len(title)==1:
+                    titles.extend(title)
+                else:
+                    titles.append(";".join(title))
+                # Body
+                body = parsed_article.get_from_selector(selector='[itemprop="articleBody"]')
+                if len(body)==1:
+                    bodies.extend(body)
+                else:
+                    bodies.append(";".join(body))
+                # title_date
+                author = parsed_article.get_from_selector(selector='.author')
+                if len(author)==1:
+                    authors.extend(author)
+                else:
+                    authors.append(",".join(author))
+                title_dates.append(lastmod)
+
+            current_date += timedelta(days=1)
+        page_data = zip(titles, bodies, title_links, title_dates, authors)
+        title_body_decode = lambda matched_by_title, matched_by_body: (
+                "",
+                matched_by_title,
+                matched_by_body,
+            )
+        match_keywords = partial(keywords_manager.match_keywords, site_url)
+        just_save_data(page_data,site_url,output_manager, site_url, url_id, from_date, to_date, title_body_decode,site_url,match_keywords,1)
+    
+    except Exception as e:
+        logging.error(f"Error while scraping this_is_money: {e}")
+
+def moneytothemasses(output_manager, url, url_id, from_date, to_date, kill_thread):
+    logging.debug("Starting search for search_morningstar_fund_research")
+    # date format YYYY-MM-DD
+
+    try:
+        market_url = "https://moneytothemasses.com/category/news/page/1"
+        market_url_parser = UrlParser(market_url, timeout=5)
+        assert market_url_parser.soup, f"Failed to load url: {url}"
+        logging.debug("market_url loaded successfully")
+        self = market_url_parser
+        parent_next_page_selector = None
+        next_page_selector = None
+        # self.get_from_selector(
+        #     parent_next_page_selector, next_page_selector, get="href"
+        # )
+        # parent_max_page_selector = None
+        # max_page_selector = None
+
+        # max_page_regex = "Page (.*)?"
+        logging.debug("Creating paginator")
+        paginator = market_url_parser.get_paginator(
+            get_next_page_selector=(parent_next_page_selector, next_page_selector),
+            get_max_page_selector=None,
+            max_page_regex=None,
+        )
+        # next(paginator)
+    except Exception as e:
+        logging.error(f"Error while generating paginator: {e}")
+
+    try:
+        logging.debug("configuring selectors for feed extraction")
+
+        match_keywords = partial(keywords_manager.match_keywords, url)
+        site_url = url
+
+        # self = market_url_parser
+        parent_selector = None
+        date_parent_selector = parent_selector
+        date_selector = ".date"
+        # _ = self.get_from_selector(date_parent_selector, date_selector)
+        # self.url
+
+        title_parent_selector = None
+        title_selector = "h3 a"
+        # _ = self.get_from_selector(title_parent_selector, title_selector, get="text")
+
+        title_body_parent_selector = None
+        title_body_selector = "article"
+        # self.soup.select(title_body_parent_selector)[0].select("p")
+        # _ = self.get_from_selector(
+        #     title_body_parent_selector,
+        #     title_body_selector,
+        #     get="text",
+        # )
+
+        link_parent_selector = None
+        link_selector = "h3 a"
+        # _ = self.get_from_selector(link_parent_selector, link_selector, get="href")
+
+        author_parent_selector = parent_selector
+        author_selector = '.author'
+        # _ = self.get_from_selector(author_parent_selector, author_selector)
+
+        logging.debug("starting to scrape paginated urls")
+        paginate_filter_and_save_data(
+            output_manager,
+            site_url,
+            url_id,
+            paginator,
+            match_keywords,
+            title_selector=(title_parent_selector, title_selector),
+            link_selector=(link_parent_selector, link_selector),
+            title_body_selector=(title_body_parent_selector, title_body_selector),
+            date_selector=(date_parent_selector, date_selector),
+            author_selector=(author_parent_selector, author_selector),
+            from_date=from_date,
+            to_date=to_date,
+            visit_to_get=["body"],
+            kill_thread=kill_thread,
+            # timeout=5,
+        )
+        # set(
+        #     map(
+        #         scrapped_data.extend,
+        #         (
+        #             _data
+        #             for _data in [
+        #                 list(data) for data in scrapped_generator_data.values()
+        #             ]
+        #         ),
+        #     )
+        # )
+    except Exception as e:
+        logging.error(f"Error while scrapping paginated data: {e}")
+    # return scrapped_data
+    return
+
 @calculate_time_taken
 def search_manager(
     url: str,
@@ -608,7 +1066,7 @@ def search_manager(
                 search_cityam_markets(
                     output_manager, url, url_id, from_date, to_date, kill_thread
                 )
-            case "https://www.reuters.com/news/archive/fundsFundsNews":
+            case "https://www.reuters.com/markets/funds/":
                 search_reuters_fundnews(
                     output_manager, url, url_id, from_date, to_date, kill_thread
                 )
@@ -624,6 +1082,22 @@ def search_manager(
                 search_morningstar_fund_research(
                     output_manager, url, url_id, from_date, to_date, kill_thread
                 )
+            case "https://www.etfstream.com/news":
+                search_etfstream(
+                    output_manager, url, url_id, from_date, to_date, kill_thread
+                )
+            case "https://www.morningstar.co.uk/uk/collection/2135/investment-trust-research--insights.aspx":
+                search_morningstar_investment_trust_research(
+                    output_manager, url, url_id, from_date, to_date, kill_thread
+                )
+            case "https://www.bestinvest.co.uk/news/investing":
+                bestinvest(output_manager, url, url_id, from_date, to_date, kill_thread)
+            case "https://www.thisismoney.co.uk/money/investing/index.html":
+                this_is_money(
+                    output_manager, url, url_id, from_date, to_date, kill_thread
+                )
+            case "https://moneytothemasses.com/category/news":
+                moneytothemasses(output_manager, url, url_id, from_date, to_date, kill_thread)
             case _:
                 logging.warning(f"Support for URL: {url} has not yet added")
                 return
