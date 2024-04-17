@@ -144,8 +144,8 @@ def paginate_filter_and_save_data(
     mirror_site_url=None,
 ):
     logging.debug("converting from_date,to_date to date_time")
-    # from_date = '2024-04-06'
-    # to_date = '2024-04-07'
+    # from_date = '2024-04-15'
+    # to_date = '2024-04-11'
     from_date = datetime.strptime(from_date, "%Y-%m-%d")
     to_date = datetime.strptime(to_date, "%Y-%m-%d")
     logging.debug(f"from_date: {from_date}, to_date: {to_date}")
@@ -377,45 +377,48 @@ def just_save_data(
     ]
     # data = next(page_data)
     for data in page_data:
-        for ind, item in enumerate(data):
-            if page_data_headers[ind] in ("partial_body",):
-                continue
-            logging.debug(f"{page_data_headers[ind]} {item}")
-        data_date = get_datetime(site_url, str(data[3]))
-        # logging.debug(f"data_date: {data_date}")
-        logging.debug(
-            f"{page_data_headers[0]} matched {match_keywords(remove_punctuations(data[0]))}"
-        )
-        logging.debug(
-            f"{page_data_headers[1]} matched {match_keywords(remove_punctuations(data[1]))}"
-        )
-        if match_keywords(remove_punctuations(data[0])) or match_keywords(
-            remove_punctuations(data[1])
-        ):
+        try:
+            for ind, item in enumerate(data):
+                if page_data_headers[ind] in ("partial_body",):
+                    continue
+                logging.debug(f"{page_data_headers[ind]} {item}")
+            # if not str(data[3]):continue
+            data_date = get_datetime(site_url, str(data[3]))
+            # logging.debug(f"data_date: {data_date}")
             logging.debug(
-                f"data_date: {data_date.date()} form_date: {from_date.date()} to_date: {to_date.date()}, consitions {from_date.date() == data_date.date()} or {to_date.date() == data_date.date()} or {from_date.date() <= data_date.date() <= to_date.date()} or {not data_date}"
+                f"{page_data_headers[0]} matched {match_keywords(remove_punctuations(data[0]))}"
             )
-            if (
-                (from_date.date() == data_date.date())
-                or (to_date.date() == data_date.date())
-                or (from_date.date() < data_date.date() < to_date.date())
-                or (not data_date)
+            logging.debug(
+                f"{page_data_headers[1]} matched {match_keywords(remove_punctuations(data[1]))}"
+            )
+            if match_keywords(remove_punctuations(data[0])) or match_keywords(
+                remove_punctuations(data[1])
             ):
-                filtered_data.append(
-                    (
-                        url,
-                        transform_date_to_output_format(site_url, data[3]),  # Date
-                        data[0],  # Title
-                        data[4],  # Author
-                        data[2],  # URL
-                        *title_body_decode(
-                            match_keywords(remove_punctuations(data[0])),
-                            match_keywords(remove_punctuations(data[1])),
-                        ),  # Title-Body keywords
-                        mirror_site_url,  # Site
-                    )
+                logging.debug(
+                    f"data_date: {data_date.date()} form_date: {from_date.date()} to_date: {to_date.date()}, consitions {from_date.date() == data_date.date()} or {to_date.date() == data_date.date()} or {from_date.date() <= data_date.date() <= to_date.date()} or {not data_date}"
                 )
-
+                if (
+                    (from_date.date() == data_date.date())
+                    or (to_date.date() == data_date.date())
+                    or (from_date.date() < data_date.date() < to_date.date())
+                    or (not data_date)
+                ):
+                    filtered_data.append(
+                        (
+                            url,
+                            transform_date_to_output_format(site_url, data[3]),  # Date
+                            data[0],  # Title
+                            data[4],  # Author
+                            data[2],  # URL
+                            *title_body_decode(
+                                match_keywords(remove_punctuations(data[0])),
+                                match_keywords(remove_punctuations(data[1])),
+                            ),  # Title-Body keywords
+                            mirror_site_url,  # Site
+                        )
+                    )
+        except Exception as e:
+            logging.error(f'Error while iterating data points from list in just save data: {e} for data: {data}')
     logger = logging.getLogger()
     if logger.getEffectiveLevel() == logging.DEBUG:
         filtered_data = list(filtered_data)

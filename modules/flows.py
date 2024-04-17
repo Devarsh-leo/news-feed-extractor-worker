@@ -58,7 +58,7 @@ def search_ft_markets(output_manager, url, url_id, from_date, to_date, kill_thre
         parent_selector = ".o-teaser--article"
         date_selector = ".o-teaser__timestamp-date"
 
-        title_selector = ".o-teaser__heading"
+        title_selector = ".o-teaser__heading a"
 
         title_body_parent_selector = None
         title_body_selector = ".o-teaser__standfirst"
@@ -1112,6 +1112,7 @@ def main(search_params, kill_thread=[], shared=None):
     futures = []
     session_id = uuid4()
     output_manager = OutputManager(configs, session_id)
+    keywords_manager.load_keywords()
     # print(1, search_params)
     for url_id, params in enumerate(search_params):
         print(params)
