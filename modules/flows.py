@@ -61,7 +61,7 @@ def search_ft_markets(output_manager, url, url_id, from_date, to_date, kill_thre
         title_selector = ".o-teaser__heading a"
 
         title_body_parent_selector = None
-        title_body_selector = ".o-teaser__standfirst"
+        title_body_selector = "article p"
         # title_body_selector = "article#article-body p"
         # _ = market_url_parser.get_from_selector(
         #     title_body_parent_selector, title_body_selector, get="text"
@@ -84,7 +84,7 @@ def search_ft_markets(output_manager, url, url_id, from_date, to_date, kill_thre
             author_selector=(author_parent_selector, author_selector),
             from_date=from_date,
             to_date=to_date,
-            visit_to_get=["author"],
+            visit_to_get=["author","body"],
             kill_thread=kill_thread,
         )
 
